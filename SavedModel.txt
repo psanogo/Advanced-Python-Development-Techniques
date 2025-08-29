@@ -1,0 +1,54 @@
+import tensorflow as tf
+import tensorflow_hub as hub
+import tensorflow_text as text # For BERT preprocessing ops
+
+# Assuming you have your preprocessed dataset (e.g., train_ds, val_ds) ready
+
+# --- #TODO section 1: Add a hub.KerasLayer for BERT text preprocessing ---
+# You'll need to choose a BERT preprocessor URL from TensorFlow Hub
+# Example: 'https://tfhub.dev/tensorflow/bert_en_uncased_preprocess/3'
+bert_preprocess_model_url = 'YOUR_BERT_PREPROCESSOR_MODEL_URL' # Replace with actual URL
+text_input = tf.keras.layers.Input(shape=(), dtype=tf.string, name='text')
+# Use the KerasLayer for preprocessing
+preprocessor = hub.KerasLayer(bert_preprocess_model_url, name='preprocessing')
+encoder_inputs = preprocessor(text_input)
+
+
+# --- #TODO section 2: Add a hub.KerasLayer for BERT text encoding ---
+# You'll need to choose a BERT encoder URL from TensorFlow Hub
+# Example: 'https://tfhub.dev/tensorflow/bert_en_uncased_L-12_H-768_A-12/3'
+bert_encoder_model_url = 'YOUR_BERT_ENCODER_MODEL_URL' # Replace with actual URL
+# Use the KerasLayer for the BERT encoder
+encoder = hub.KerasLayer(bert_encoder_model_url, trainable=True, name='BERT_encoder')
+outputs = encoder(encoder_inputs)
+pooled_output = outputs['pooled_output'] # This is typically used for classification
+
+
+# Build the classification head
+# Add your classification layers on top of the pooled_output
+l = tf.keras.layers.Dropout(0.1)(pooled_output)
+l = tf.keras.layers.Dense(1, activation=None, name='classifier')(l) # Assuming binary classification (e.g., positive/negative)
+# For sentiment analysis, you might use 'sigmoid' for binary or 'softmax' for multi-class
+
+# Create the full model
+model = tf.keras.Model(text_input, l)
+
+# Compile the model
+# Choose an appropriate loss function and optimizer
+loss = tf.keras.losses.BinaryCrossentropy(from_logits=True) # If using activation=None in last layer
+metrics = tf.metrics.BinaryAccuracy()
+optimizer = tf.keras.optimizers.Adam(learning_rate=3e-5) # Common for fine-tuning BERT
+
+model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+
+# Train the model (adjust epochs and batch_size as needed)
+# model.fit(train_ds, validation_data=val_ds, epochs=...)
+
+
+# --- #TODO section 3: Save your BERT sentiment classifier locally ---
+# Save it to the ./bert-sentiment-classifier-local directory.
+# The target path is specifically 'bert-sentiment-classifier-local/saved_model.pb'
+# When saving in SavedModel format, TensorFlow creates a directory,
+# and the .pb file is inside that. So you just specify the directory.
+saved_model_path = './bert-sentiment-classifier-local'
+tf.saved_model.save(model, saved_model_path) # This will create the directory and the .pb file inside it
